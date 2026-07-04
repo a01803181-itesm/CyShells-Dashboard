@@ -490,38 +490,8 @@
   }
   .account-name { color: var(--text); font-weight: 500; }
   .account-name.risk-high-name { color: var(--red2); }
-  .account-name-wrap { position: relative; display: inline-block; }
-  .account-link-pop {
-    position: absolute;
-    left: 0;
-    bottom: calc(100% + 2px);
-    min-width: 240px;
-    max-width: 360px;
-    padding: 8px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border2);
-    background: var(--bg3);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.28);
-    opacity: 0;
-    transform: translateY(4px);
-    pointer-events: none;
-    transition: opacity 0.15s, transform 0.15s;
-    z-index: 25;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-  }
-  .account-name-wrap:hover .account-link-pop,
-  .account-link-pop:hover {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
-  }
-  .account-link-pop a {
-    color: var(--blue);
-    text-decoration: none;
-    word-break: break-all;
-  }
-  .account-link-pop a:hover { text-decoration: underline; }
+  a.account-name { text-decoration: none; }
+  a.account-name:hover { text-decoration: underline; }
   .num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .tag {

@@ -444,7 +444,7 @@ function renderTable(data) {
     const accountClass = riskLabel === 'muy peligroso' ? 'account-name risk-high-name' : 'account-name';
     const tiktokUrl = `https://www.tiktok.com/${row.cuenta.startsWith('@') ? row.cuenta : '@' + row.cuenta}`;
     const safeUrl = escapeHtml(tiktokUrl);
-    const accountNameHtml = `<span class="account-name-wrap"><span class="${accountClass}">${row.cuenta}</span><span class="account-link-pop"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a></span></span>`;
+    const accountNameHtml = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${accountClass}" style="text-decoration: none;">${row.cuenta}</a>`;
     return `<tr>
       <td><div class="td-account"><div class="account-avatar">${initials}</div>${accountNameHtml}</div></td>
       <td><div class="tags"><span class="tag risk ${riskClass}">${riskLabel}</span></div></td>
