@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CyShells — Dashboard Monitoreo TikTok</title>
+<link rel="icon" type="image/png" href="/media_sources/cy_shell_logo_cyan.png">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <span class="logo-text">CY<span>/</span>SHELLS</span>
+  </div>
+  <div class="header-right">
+    <span class="badge-live">ACTIVO</span>
+    <span id="last-update">Sin datos cargados</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- IMPORT -->
+  <div class="import-zone" id="drop-zone">
+  <div class="import-left">
+    <div class="import-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M8 12l4-4 4 4M12 4v12"/>
+      </svg>
+    </div>
+    <div>
+      <div class="import-title" id="import-title-text">Importar Datos a SQL</div>
+      <div class="import-sub" id="import-sub-text">Carga el archivo scrapetest.json para sincronizar la base de datos hack_shell</div>
+    </div>
+  </div>
+  <div class="import-actions">
+    <button class="btn btn-teal" onclick="document.getElementById('file-input').click()">Cargar archivo</button>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".json" style="display:none" onchange="procesarArchivo(event)">
+
+  <!-- <div class="import-zone" id="drop-zone">
+    <div class="import-left">
+      <div class="import-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M8 12l4-4 4 4M12 4v12"/>
+        </svg>
+      </div>
+      <div>
+        <div class="import-title" id="import-title-text">Importar Datos</div>
+        <div class="import-sub" id="import-sub-text">Arrastra un archivo JSON o CSV exportado desde Apify / Octoparse</div>
+      </div>
+    </div>
+    <div class="import-actions">
+      <button class="btn btn-teal" onclick="document.getElementById('file-input').click()">Cargar archivo</button>
+    </div>
+  </div>
+  <input type="file" id="file-input" accept=".json,.csv"> -->
+
+  <!-- MÉTRICAS -->
+  <div class="section-header">
+    <span class="section-label">Resumen</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="cards-grid">
+    <div class="card card-risk">
+      <div class="card-label">Cuentas monitoreadas</div>
+      <div class="card-value red" id="stat-cuentas">—</div>
+      <div class="card-sub">perfiles únicos</div>
+      <div class="risk-hover-box" id="risk-hover-box">
+        <div class="risk-hover-title">Desglose de Riesgo</div>
+        <div class="risk-hover-row"><span>Seguras</span><strong id="risk-safe-count">—</strong></div>
+        <div class="risk-hover-row"><span>No seguras</span><strong id="risk-unsafe-count">—</strong></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-label">Seguidores totales</div>
+      <div class="card-value amber" id="stat-followers">—</div>
+      <div class="card-sub">alcance acumulado</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Publicaciones</div>
+      <div class="card-value teal" id="stat-posts">—</div>
+      <div class="card-sub">videos registrados</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Comentarios</div>
+      <div class="card-value blue" id="stat-comments">—</div>
+      <div class="card-sub">interacciones</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Hashtag principal</div>
+      <div class="card-value" id="stat-hashtag" style="font-size:16px; padding-top:5px;">—</div>
+      <div class="card-sub">más frecuente</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Emoji principal</div>
+      <div class="card-value" id="stat-emoji" style="font-size:28px; padding-top:2px;">—</div>
+      <div class="card-sub">más frecuente</div>
+    </div>
+  </div>
+
+  <!-- GRÁFICAS FILA 1 -->
+  <div class="section-header">
+    <span class="section-label">Gráficas</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Seguidores por Cuenta</div>
+      <div class="chart-wrap" style="height:280px;"><canvas id="chart-followers" role="img" aria-label="Seguidores por cuenta de TikTok">Cargando datos...</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Publicaciones por Cuenta</div>
+      <div class="chart-wrap" style="height:280px;"><canvas id="chart-posts" role="img" aria-label="Publicaciones por cuenta">Cargando datos...</canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="chart-title">Hashtags más Usados (top 10)</div>
+        <div class="info-wrap" aria-label="Hashtags ignorados">
+          <span class="info-btn">i</span>
+          <div class="info-pop">
+            <div class="info-title">Hashtags Ignorados</div>
+            <div class="info-list" id="ignored-hashtags-list">ninguno</div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-wrap" id="wrap-hashtags" style="height:320px;"><canvas id="chart-hashtags" role="img" aria-label="Hashtags más frecuentes">Cargando datos...</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Emojis más Usados</div>
+      <div class="chart-wrap" id="wrap-emojis" style="height:320px;"><canvas id="chart-emojis" role="img" aria-label="Emojis más frecuentes">Cargando datos...</canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-row">
+    <div class="chart-card">
+      <div class="chart-title">Música más Usada</div>
+      <div class="chart-wrap" id="wrap-music" style="height:300px;"><canvas id="chart-music" role="img" aria-label="Música más usada">Cargando datos...</canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Comentarios por Cuenta</div>
+      <div class="chart-wrap" style="height:300px;"><canvas id="chart-comments" role="img" aria-label="Comentarios por cuenta">Cargando datos...</canvas></div>
+    </div>
+  </div>
+
+  <!-- TABLA -->
+  <div class="section-header" style="margin-top:0.5rem;">
+    <span class="section-label">Registros</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="table-wrapper">
+    <div class="table-header">
+      <div>
+        <div class="table-title">Cuentass Detectadas</div>
+        <div class="table-file" id="loaded-file-name">archivo: sin cargar</div>
+      </div>
+      <div class="table-filters">
+        <input type="text" id="search-input" placeholder="buscar cuenta...">
+        <select id="filter-riesgo" class="filter-select" aria-label="Filtrar por riesgo">
+          <option value="">Riesgo: todos</option>
+        </select>
+        <select id="filter-hashtag" class="filter-select" aria-label="Filtrar por hashtag repetido">
+          <option value="">Hashtag repetido: todos</option>
+        </select>
+        <select id="filter-musica" class="filter-select" aria-label="Filtrar por música repetida">
+          <option value="">Música repetida: todos</option>
+        </select>
+      </div>
+    </div>
+    <div class="tbl-scroll">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <th>Cuenta</th>
+            <th>Riesgo</th>
+            <th>Seguidores</th>
+            <th>Posts</th>
+            <th>Comentarios</th>
+            <th>Hashtags</th>
+            <th>Emojis</th>
+            <th>Música</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="8"><div id="empty-state">
+            <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35M11 8v6M8 11h6"/></svg></div>
+            <div class="empty-title">Sin datos cargados</div>
+            <div class="empty-sub">Importa un JSON/CSV o usa los datos de ejemplo para comenzar</div>
+          </div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- EXPORT -->
+  <div class="export-bar">
+    <span class="export-label">exportar:</span>
+    <button class="btn btn-secondary" onclick="exportJSON()">JSON</button>
+    <button class="btn btn-secondary" onclick="exportCSV()">CSV</button>
+  </div>
+
+</main>
+
+<footer>CY/SHELLS — uso exclusivo para investigación y protección de menores</footer>
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+</script>
+</body>
+</html>

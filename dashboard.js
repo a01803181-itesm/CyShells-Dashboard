@@ -1,0 +1,761 @@
+/* ── ESTADO GLOBAL ── */
+let allData = [];
+let charts = {};
+let currentFileName = 'sin cargar';
+const IGNORED_HASHTAG_BASE = new Set([
+  'fyp', 'foryou', 'foryoupage', 'fy', 'viral', 'trending', 'parati', 'para_ti'
+]);
+
+/* ── CARGA DESDE SERVIDOR ── */
+async function fetchDataFromServer() {
+  try {
+    showToast('Conectando con el servidor...');
+    const response = await fetch('http://3.137.137.166:3000/api/data');
+    if (!response.ok) throw new Error('Error en la respuesta del servidor');
+    const data = await response.json();
+    
+    // El servidor devuelve datos ya estructurados, pero pasamos por normalizeData por seguridad
+    allData = normalizeData(data);
+    setLoadedFileName('Base de Datos SQL');
+    renderAll();
+    showToast('Datos cargados desde SQL con éxito');
+  } catch (error) {
+    console.error('Error al cargar datos:', error);
+    showToast('Error al conectar con SQL. ¿Está el servidor corriendo?');
+    // Si falla el servidor, cargamos ejemplos por defecto
+    loadSampleData();
+  }
+}
+
+// Cargar automáticamente al iniciar
+window.addEventListener('DOMContentLoaded', fetchDataFromServer);
+
+/* ── CARGA DE ARCHIVO ── */
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      if (file.name.endsWith('.csv')) {
+        allData = normalizeData(parseCSV(ev.target.result));
+      } else {
+        const parsed = JSON.parse(ev.target.result);
+        allData = normalizeData(parsed);
+      }
+      setLoadedFileName(file.name);
+      renderAll();
+      showToast('Archivo cargado: ' + file.name);
+    } catch(err) {
+      showToast('Error al parsear el archivo');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+/* ── DRAG & DROP ── */
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      if (file.name.endsWith('.csv')) {
+        allData = normalizeData(parseCSV(ev.target.result));
+      } else {
+        const parsed = JSON.parse(ev.target.result);
+        allData = normalizeData(parsed);
+      }
+      setLoadedFileName(file.name);
+      renderAll();
+      showToast('Archivo cargado por drag & drop');
+    } catch { showToast('Error al parsear el archivo'); }
+  };
+  reader.readAsText(file);
+});
+
+function loadSampleData() {
+  allData = normalizeData(SAMPLE_DATA);
+  setLoadedFileName('datos de ejemplo');
+  renderAll();
+  showToast('Datos de ejemplo cargados');
+}
+
+/* ── PARSE CSV ── */
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(v => v.replace(/"/g,'').trim());
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i] || '');
+    return {
+      cuenta: obj.cuenta || obj.account || obj.username || '',
+      followers: parseInt(obj.followers || obj.seguidores || 0),
+      publicaciones: parseInt(obj.publicaciones || obj.posts || 0),
+      comentarios: parseInt(obj.comentarios || obj.comments || 0),
+      hashtags: (obj.hashtags || '').split('|').filter(Boolean),
+      emojis: (obj.emojis || '').split('|').filter(Boolean),
+      musica: (obj.musica || obj.music || '').split('|').filter(Boolean),
+      riesgo: obj.riesgo || obj.label || obj.riskLabel || 'seguro',
+      profileUrl: obj.profileUrl || obj.profileurl || ''
+    };
+  }).filter(r => r.cuenta);
+}
+
+function normalizeData(input) {
+  if (!Array.isArray(input)) return [];
+  if (!input.length) return [];
+  const first = input[0];
+  if (first && typeof first === 'object' && (
+    Object.prototype.hasOwnProperty.call(first, 'cuenta') ||
+    Object.prototype.hasOwnProperty.call(first, 'followers') ||
+    Object.prototype.hasOwnProperty.call(first, 'publicaciones')
+  )) {
+    return input.map(row => ({
+      cuenta: row.cuenta || '',
+      followers: Number(row.followers) || 0,
+      publicaciones: Number(row.publicaciones) || 0,
+      comentarios: Number(row.comentarios) || 0,
+      hashtags: toUniqueArray(row.hashtags),
+      emojis: toUniqueArray(row.emojis),
+      musica: toUniqueArray(row.musica),
+      riesgo: normalizeRiskLabel(row.riesgo || row.label || row.riskLabel),
+      profileUrl: row.profileUrl || row.profileurl || ''
+    })).filter(r => r.cuenta);
+  }
+
+  const grouped = {};
+  input.forEach(item => {
+    if (!item || typeof item !== 'object') return;
+    const username = item.authorMeta?.name || item.authorMeta?.nickName || '';
+    if (!username) return;
+    const cuenta = username.startsWith('@') ? username : '@' + username;
+    if (!grouped[cuenta]) {
+      grouped[cuenta] = {
+        cuenta,
+        followers: 0,
+        publicaciones: 0,
+        comentarios: 0,
+        hashtagsSet: new Set(),
+        emojisSet: new Set(),
+        musicaSet: new Set(),
+        riskLevel: 'seguro',
+        profileUrl: ''
+      };
+    }
+    const row = grouped[cuenta];
+    row.followers = Math.max(row.followers, Number(item.authorMeta?.fans) || 0);
+    row.publicaciones += 1;
+    row.comentarios += Number(item.commentCount) || 0;
+
+    extractHashtags(item).forEach(h => row.hashtagsSet.add(h));
+    extractEmojis(item.text).forEach(e => row.emojisSet.add(e));
+    const song = item.musicMeta?.musicName;
+    if (song && typeof song === 'string') row.musicaSet.add(song.trim());
+    const itemRisk = normalizeRiskLabel(item.label || item.riesgo || item.riskLabel);
+    row.riskLevel = highestRisk(row.riskLevel, itemRisk);
+    if (!row.profileUrl && item.authorMeta?.profileUrl) row.profileUrl = String(item.authorMeta.profileUrl);
+  });
+
+  return Object.values(grouped)
+    .map(r => ({
+      cuenta: r.cuenta,
+      followers: r.followers,
+      publicaciones: r.publicaciones,
+      comentarios: r.comentarios,
+      hashtags: Array.from(r.hashtagsSet),
+      emojis: Array.from(r.emojisSet),
+      musica: Array.from(r.musicaSet),
+      riesgo: r.riskLevel,
+      profileUrl: r.profileUrl
+    }))
+    .sort((a, b) => b.followers - a.followers);
+}
+
+/* ── RENDER EVERYTHING ── */
+function renderAll() {
+  updateTimestamp();
+  renderCards();
+  renderChartFollowers();
+  renderChartPosts();
+  renderChartHashtags();
+  renderChartEmojis();
+  renderChartMusic();
+  renderChartComments();
+  populateTableFilters();
+  applyTableFilters();
+}
+
+function updateTimestamp() {
+  const now = new Date();
+  document.getElementById('last-update').textContent =
+    now.toLocaleDateString('es-MX') + ' ' + now.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+}
+function setLoadedFileName(name) {
+  currentFileName = name || 'sin cargar';
+  const el = document.getElementById('loaded-file-name');
+  if (el) el.textContent = 'archivo: ' + currentFileName;
+  const importTitle = document.getElementById('import-title-text');
+  const importSub = document.getElementById('import-sub-text');
+  const drop = document.getElementById('drop-zone');
+  const loaded = currentFileName !== 'sin cargar';
+  if (drop) drop.classList.toggle('file-loaded', loaded);
+  if (importTitle) importTitle.textContent = loaded ? currentFileName : 'Importar datos';
+  if (importSub) {
+    importSub.textContent = loaded ? '' : 'Arrastra un archivo JSON o CSV exportado desde Apify / Octoparse';
+  }
+}
+
+/* ── TARJETAS ── */
+function renderCards() {
+  const totalFollowers = allData.reduce((a,b) => a + (b.followers||0), 0);
+  const totalPosts     = allData.reduce((a,b) => a + (b.publicaciones||0), 0);
+  const totalComments  = allData.reduce((a,b) => a + (b.comentarios||0), 0);
+  const safeCount      = allData.filter(d => normalizeRiskLabel(d.riesgo || d.label || d.riskLabel) === 'seguro').length;
+  const unsafeCount    = Math.max(allData.length - safeCount, 0);
+  document.getElementById('stat-cuentas').textContent   = allData.length;
+  document.getElementById('stat-followers').textContent = fmtNum(totalFollowers);
+  document.getElementById('stat-posts').textContent     = fmtNum(totalPosts);
+  document.getElementById('stat-comments').textContent  = fmtNum(totalComments);
+  document.getElementById('risk-safe-count').textContent = safeCount;
+  document.getElementById('risk-unsafe-count').textContent = unsafeCount;
+
+  const tagFreq = countFreq(allData.flatMap(d => d.hashtags || []));
+  const top1Tag = topN(tagFreq, 1);
+  document.getElementById('stat-hashtag').textContent = top1Tag.length ? top1Tag[0][0] : '—';
+
+  const emojiFreq = countFreq(allData.flatMap(d => d.emojis || []));
+  const top1Emoji = topN(emojiFreq, 1);
+  document.getElementById('stat-emoji').textContent = top1Emoji.length ? top1Emoji[0][0] : '—';
+}
+
+/* ── GRÁFICAS ── */
+const CHART_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } }
+  }
+};
+const RANGE_OPTS = {
+  ...CHART_OPTS,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      enabled: false,
+      external: renderRangeTooltip
+    }
+  }
+};
+const HORIZ_OPTS = {
+  indexAxis: 'y',
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: ctx => `Cuentas: ${ctx.raw}`,
+        afterBody: items => {
+          const item = items && items.length ? items[0] : null;
+          const label = item?.label;
+          const membersByLabel = item?.dataset?.membersByLabel || {};
+          const members = label ? (membersByLabel[label] || []) : [];
+          if (!members.length) return [];
+          return ['---', ...members.map(name => `• ${name}`)];
+        }
+      }
+    }
+  },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b92a0', font: { family: 'IBM Plex Mono', size: 11 } } }
+  }
+};
+
+function makeChart(id, type, labels, data, color, opts, extraDatasetProps = {}) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    type,
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: color,
+        borderColor: 'transparent',
+        borderRadius: 4,
+        borderSkipped: false,
+        ...extraDatasetProps
+      }]
+    },
+    options: opts
+  });
+}
+
+function renderChartFollowers() {
+  const buckets = buildRangeBuckets(allData, 'followers', 6);
+  makeRangeChart('chart-followers', buckets, '#e8413e');
+}
+function renderChartPosts() {
+  const buckets = buildRangeBuckets(allData, 'publicaciones', 6);
+  makeRangeChart('chart-posts', buckets, '#e8a83e');
+}
+function renderChartComments() {
+  const buckets = buildRangeBuckets(allData, 'comentarios', 6);
+  makeRangeChart('chart-comments', buckets, '#4a9eff');
+}
+function makeRangeChart(id, buckets, color) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), {
+    type: 'bar',
+    data: {
+      labels: buckets.labels,
+      datasets: [{
+        data: buckets.counts,
+        membersByBin: buckets.membersByBin,
+        backgroundColor: color,
+        borderColor: 'transparent',
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: RANGE_OPTS
+  });
+}
+function renderRangeTooltip(context) {
+  const { chart, tooltip } = context;
+  let el = document.getElementById('range-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'range-tooltip';
+    el.className = 'range-tooltip';
+    document.body.appendChild(el);
+  }
+  if (!tooltip || tooltip.opacity === 0) {
+    el.style.opacity = 0;
+    return;
+  }
+
+  const point = tooltip.dataPoints && tooltip.dataPoints.length ? tooltip.dataPoints[0] : null;
+  const idx = point ? point.dataIndex : -1;
+  const dataset = point?.dataset || {};
+  const members = idx >= 0 ? (dataset.membersByBin?.[idx] || []) : [];
+  const label = point?.label || '';
+  const count = point?.raw ?? 0;
+
+  const namesHtml = members.length
+    ? members.map(name => {
+      const cls = isHighRiskAccount(name) ? 'tt-name-high' : '';
+      return `<div class="${cls}">• ${escapeHtml(name)}</div>`;
+    }).join('')
+    : '<div>Sin cuentas en este rango</div>';
+
+  el.innerHTML = `
+    <div class="tt-title">${escapeHtml(label)}</div>
+    <div class="tt-sub">Cuentas: ${count}</div>
+    <div class="tt-sep">---</div>
+    ${namesHtml}
+  `;
+
+  const rect = chart.canvas.getBoundingClientRect();
+  el.style.opacity = 1;
+  el.style.left = `${rect.left + window.pageXOffset + tooltip.caretX + 12}px`;
+  el.style.top = `${rect.top + window.pageYOffset + tooltip.caretY + 12}px`;
+}
+
+function renderChartHashtags() {
+  const ignoredFound = new Set();
+  const { freq, membersByTag } = countAccountsByHashtag(allData, ignoredFound);
+  const top  = topN(freq, 10);
+  const h = Math.max(top.length * 40 + 60, 200);
+  document.getElementById('wrap-hashtags').style.height = h + 'px';
+  const labels = top.map(t => t[0]);
+  makeChart(
+    'chart-hashtags',
+    'bar',
+    labels,
+    top.map(t => t[1]),
+    '#4a9eff',
+    HORIZ_OPTS,
+    { membersByLabel: buildMembersByLabel(labels, membersByTag) }
+  );
+  updateIgnoredHashtagInfo(ignoredFound);
+}
+function renderChartEmojis() {
+  const { freq, membersByValue } = countAccountsByValue(allData, 'emojis');
+  const top  = topN(freq, 10);
+  const h = Math.max(top.length * 40 + 60, 200);
+  document.getElementById('wrap-emojis').style.height = h + 'px';
+  const labels = top.map(t => t[0]);
+  makeChart(
+    'chart-emojis',
+    'bar',
+    labels,
+    top.map(t => t[1]),
+    '#a78bfa',
+    HORIZ_OPTS,
+    { membersByLabel: buildMembersByLabel(labels, membersByValue) }
+  );
+}
+function renderChartMusic() {
+  const { freq, membersByValue } = countAccountsByValue(allData, 'musica');
+  const top  = topN(freq, 8);
+  const h = Math.max(top.length * 40 + 60, 200);
+  document.getElementById('wrap-music').style.height = h + 'px';
+  const originalLabels = top.map(t => t[0]);
+  const displayLabels = originalLabels.map(v => v.length > 30 ? v.slice(0,30) + '…' : v);
+  const membersByLabel = {};
+  displayLabels.forEach((display, i) => { membersByLabel[display] = membersByValue[originalLabels[i]] || []; });
+  makeChart(
+    'chart-music',
+    'bar',
+    displayLabels,
+    top.map(t => t[1]),
+    '#e8a83e',
+    HORIZ_OPTS,
+    { membersByLabel }
+  );
+}
+
+/* ── TABLA ── */
+function renderTable(data) {
+  const tbody = document.getElementById('table-body');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div id="empty-state"><div class="empty-title">Sin resultados</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(row => {
+    const initials = (row.cuenta || '').replace('@','').slice(0,2).toUpperCase();
+    const htags = (row.hashtags||[]).slice(0,4).map(h => `<span class="tag hashtag">${h}</span>`).join('');
+    const emjs  = (row.emojis||[]).slice(0,4).map(e => `<span class="tag emoji">${e}</span>`).join('');
+    const music = (row.musica||[]).slice(0,2).map(m => `<span class="tag music">${m.length>28?m.slice(0,28)+'…':m}</span>`).join('');
+    const riskLabel = normalizeRiskLabel(row.riesgo || row.label || row.riskLabel);
+    const riskClass = riskLabel === 'muy peligroso' ? 'risk-high' : (riskLabel === 'intermedio' ? 'risk-mid' : 'risk-safe');
+    const accountClass = riskLabel === 'muy peligroso' ? 'account-name risk-high-name' : 'account-name';
+    const profileUrl = String(row.profileUrl || '').trim();
+    const safeUrl = escapeHtml(profileUrl);
+    const accountNameHtml = profileUrl
+      ? `<span class="account-name-wrap"><span class="${accountClass}">${row.cuenta}</span><span class="account-link-pop"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a></span></span>`
+      : `<span class="${accountClass}">${row.cuenta}</span>`;
+    return `<tr>
+      <td><div class="td-account"><div class="account-avatar">${initials}</div>${accountNameHtml}</div></td>
+      <td><div class="tags"><span class="tag risk ${riskClass}">${riskLabel}</span></div></td>
+      <td class="num">${fmtNum(row.followers||0)}</td>
+      <td class="num">${fmtNum(row.publicaciones||0)}</td>
+      <td class="num">${fmtNum(row.comentarios||0)}</td>
+      <td><div class="tags">${htags}</div></td>
+      <td><div class="tags">${emjs}</div></td>
+      <td><div class="tags">${music}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── BÚSQUEDA ── */
+document.getElementById('search-input').addEventListener('input', applyTableFilters);
+document.getElementById('filter-riesgo').addEventListener('change', applyTableFilters);
+document.getElementById('filter-hashtag').addEventListener('change', applyTableFilters);
+document.getElementById('filter-musica').addEventListener('change', applyTableFilters);
+
+/* ── EXPORT ── */
+function exportJSON() {
+  if (!allData.length) return showToast('No hay datos para exportar');
+  const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'tiktok-monitor.json');
+  showToast('JSON exportado');
+}
+function exportCSV() {
+  if (!allData.length) return showToast('No hay datos para exportar');
+  const headers = ['cuenta','followers','publicaciones','comentarios','hashtags','emojis','musica','riesgo'];
+  const rows = allData.map(d => [
+    d.cuenta, d.followers||0, d.publicaciones||0, d.comentarios||0,
+    (d.hashtags||[]).join('|'), (d.emojis||[]).join('|'), (d.musica||[]).join('|'), normalizeRiskLabel(d.riesgo || d.label || d.riskLabel)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  downloadBlob(new Blob([csv], {type:'text/csv'}), 'tiktok-monitor.csv');
+  showToast('CSV exportado');
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+
+/* ── HELPERS ── */
+function fmtNum(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+function shortName(name) { return (name||'').replace('@','').slice(0,12); }
+function buildRangeBuckets(accounts, key, bucketCount = 6) {
+  const values = accounts.map(a => Number(a[key]) || 0);
+  if (!values.length) {
+    return { labels: ['0-0'], counts: [0], membersByBin: [[]] };
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (min === max) {
+    return {
+      labels: [`${fmtNum(min)} - ${fmtNum(max)}`],
+      counts: [accounts.length],
+      membersByBin: [accounts.map(a => a.cuenta || 'sin_cuenta')]
+    };
+  }
+  const bins = Math.max(1, bucketCount);
+  const step = Math.ceil((max - min + 1) / bins);
+  const labels = [];
+  const counts = Array.from({ length: bins }, () => 0);
+  const membersByBin = Array.from({ length: bins }, () => []);
+  for (let i = 0; i < bins; i++) {
+    const start = min + i * step;
+    const end = i === bins - 1 ? max : (start + step - 1);
+    labels.push(`${fmtNum(start)} - ${fmtNum(end)}`);
+  }
+  accounts.forEach(acc => {
+    const v = Number(acc[key]) || 0;
+    let idx = Math.floor((v - min) / step);
+    if (idx < 0) idx = 0;
+    if (idx >= bins) idx = bins - 1;
+    counts[idx] += 1;
+    membersByBin[idx].push(acc.cuenta || 'sin_cuenta');
+  });
+  return { labels, counts, membersByBin };
+}
+function countFreq(arr) {
+  const map = {};
+  arr.forEach(v => { if(v) map[v] = (map[v]||0)+1; });
+  return map;
+}
+function countAccountsByHashtag(accounts, ignoredCollector) {
+  const map = {};
+  const membersByTag = {};
+  accounts.forEach(acc => {
+    const uniqueTags = new Set((acc.hashtags || []).map(h => normalizeHashtag(h)).filter(Boolean));
+    uniqueTags.forEach(tag => {
+      if (shouldIgnoreHashtag(tag)) {
+        if (ignoredCollector) ignoredCollector.add(tag);
+        return;
+      }
+      map[tag] = (map[tag] || 0) + 1;
+      if (!membersByTag[tag]) membersByTag[tag] = [];
+      membersByTag[tag].push(acc.cuenta || 'sin_cuenta');
+    });
+  });
+  return { freq: map, membersByTag };
+}
+function countAccountsByValue(accounts, key) {
+  const freq = {};
+  const membersByValue = {};
+  accounts.forEach(acc => {
+    const values = new Set((acc[key] || []).map(v => String(v || '').trim()).filter(Boolean));
+    values.forEach(v => {
+      freq[v] = (freq[v] || 0) + 1;
+      if (!membersByValue[v]) membersByValue[v] = [];
+      membersByValue[v].push(acc.cuenta || 'sin_cuenta');
+    });
+  });
+  return { freq, membersByValue };
+}
+function buildMembersByLabel(labels, sourceMap) {
+  const map = {};
+  labels.forEach(label => { map[label] = sourceMap[label] || []; });
+  return map;
+}
+function shouldIgnoreHashtag(tag) {
+  const clean = String(tag || '').replace(/^#/, '').toLowerCase().trim();
+  if (!clean) return true;
+  if (IGNORED_HASHTAG_BASE.has(clean)) return true;
+  if (/^fyp+$/.test(clean)) return true;
+  return false;
+}
+function updateIgnoredHashtagInfo(ignoredSet) {
+  const el = document.getElementById('ignored-hashtags-list');
+  if (!el) return;
+  const items = Array.from(ignoredSet || []).sort((a, b) => a.localeCompare(b));
+  el.textContent = items.length ? items.join(', ') : 'ninguno';
+}
+function countRepeatedValuesByAccount(accounts, key) {
+  const freq = {};
+  accounts.forEach(acc => {
+    const unique = new Set((acc[key] || []).map(v => String(v || '').trim()).filter(Boolean));
+    unique.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
+  });
+  return freq;
+}
+function populateSelectWithRepeated(selectId, defaultLabel, entries) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const current = select.value;
+  const opts = [`<option value="">${defaultLabel}</option>`];
+  entries
+    .filter(([, count]) => count > 1)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .forEach(([value, count]) => {
+      const safeValue = escapeHtml(value);
+      opts.push(`<option value="${safeValue}">${safeValue} (${count})</option>`);
+    });
+  select.innerHTML = opts.join('');
+  if (current && Array.from(select.options).some(o => o.value === current)) {
+    select.value = current;
+  }
+}
+function populateTableFilters() {
+  const riesgoFreq = countFreq(allData.map(d => normalizeRiskLabel(d.riesgo || d.label || d.riskLabel)));
+  const hashtagFreq = countRepeatedValuesByAccount(allData, 'hashtags');
+  const musicaFreq = countRepeatedValuesByAccount(allData, 'musica');
+
+  const riesgoEntries = Object.entries(riesgoFreq).sort((a, b) => riskRank(b[0]) - riskRank(a[0]));
+  const riesgoSelect = document.getElementById('filter-riesgo');
+  if (riesgoSelect) {
+    const current = riesgoSelect.value;
+    const opts = ['<option value="">riesgo: todos</option>'];
+    riesgoEntries.forEach(([label, count]) => {
+      opts.push(`<option value="${label}">${label} (${count})</option>`);
+    });
+    riesgoSelect.innerHTML = opts.join('');
+    if (current && Array.from(riesgoSelect.options).some(o => o.value === current)) {
+      riesgoSelect.value = current;
+    }
+  }
+
+  populateSelectWithRepeated('filter-hashtag', 'hashtag repetido: todos', Object.entries(hashtagFreq));
+  populateSelectWithRepeated('filter-musica', 'música repetida: todos', Object.entries(musicaFreq));
+}
+function applyTableFilters() {
+  const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+  const riesgo = document.getElementById('filter-riesgo')?.value || '';
+  const hashtag = document.getElementById('filter-hashtag')?.value || '';
+  const musica = document.getElementById('filter-musica')?.value || '';
+
+  const filtered = allData.filter(row => {
+    if (q && !(row.cuenta || '').toLowerCase().includes(q)) return false;
+    const rowRisk = normalizeRiskLabel(row.riesgo || row.label || row.riskLabel);
+    if (riesgo && rowRisk !== riesgo) return false;
+    if (hashtag && !(row.hashtags || []).includes(hashtag)) return false;
+    if (musica && !(row.musica || []).includes(musica)) return false;
+    return true;
+  });
+
+  renderTable(filtered);
+}
+function topN(freq, n) {
+  return Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,n);
+}
+function normalizeRiskLabel(value) {
+  const clean = String(value || '').trim().toLowerCase();
+  if (!clean) return 'seguro';
+  if (clean.includes('muy') && clean.includes('peligro')) return 'muy peligroso';
+  if (clean.includes('inter')) return 'intermedio';
+  if (clean.includes('sospech')) return 'intermedio';
+  if (clean.includes('segur')) return 'seguro';
+  return 'seguro';
+}
+function riskRank(label) {
+  if (label === 'muy peligroso') return 3;
+  if (label === 'intermedio') return 2;
+  return 1;
+}
+function highestRisk(a, b) {
+  return riskRank(b) > riskRank(a) ? b : a;
+}
+function isHighRiskAccount(accountName) {
+  const row = allData.find(d => (d.cuenta || '') === accountName);
+  if (!row) return false;
+  return normalizeRiskLabel(row.riesgo || row.label || row.riskLabel) === 'muy peligroso';
+}
+function normalizeHashtag(tag) {
+  if (!tag) return '';
+  const clean = String(tag).trim();
+  if (!clean) return '';
+  return clean.startsWith('#') ? clean.toLowerCase() : ('#' + clean.toLowerCase());
+}
+function toUniqueArray(val) {
+  if (!Array.isArray(val)) return [];
+  return Array.from(new Set(val.map(v => String(v || '').trim()).filter(Boolean)));
+}
+function extractHashtags(item) {
+  const out = [];
+  const raw = item.hashtags;
+  if (Array.isArray(raw)) {
+    raw.forEach(h => {
+      if (typeof h === 'string') out.push(normalizeHashtag(h));
+      else if (h && typeof h === 'object') out.push(normalizeHashtag(h.name || h.title || ''));
+    });
+  }
+  const text = typeof item.text === 'string' ? item.text : '';
+  const fromText = text.match(/#[^\s#]+/g) || [];
+  fromText.forEach(t => out.push(normalizeHashtag(t)));
+  return Array.from(new Set(out.filter(Boolean)));
+}
+function extractEmojis(text) {
+  if (!text || typeof text !== 'string') return [];
+  const matches = text.match(/\p{Extended_Pictographic}/gu) || [];
+  return Array.from(new Set(matches));
+}
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// --- PEGAR ESTO AL FINAL DE TU <SCRIPT> ---
+
+async function procesarArchivo(evento) {
+    const archivo = evento.target.files[0];
+    if (!archivo) return;
+
+    // Referencias visuales para dar feedback
+    const titulo = document.getElementById('import-title-text');
+    const sub = document.getElementById('import-sub-text');
+    
+    const textoOriginalTitulo = titulo.innerText;
+    const textoOriginalSub = sub.innerText;
+
+    titulo.innerText = "Procesando...";
+    sub.innerText = "Subiendo datos a la base de datos hack_shell...";
+
+    const lector = new FileReader();
+    lector.onload = async (e) => {
+        try {
+            const contenidoJson = JSON.parse(e.target.result);
+            
+            // Petición al servidor Node.js
+            const respuesta = await fetch('http://localhost:3000/api/upload-json', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(contenidoJson)
+            });
+
+            if (respuesta.ok) {
+                alert("¡Base de datos actualizada correctamente!");
+                titulo.innerText = "¡Sincronización Exitosa!";
+                sub.innerText = "Los datos del JSON ya están en tu base de datos SQL.";
+                
+                // Si tienes una función para refrescar la tabla, llámala aquí:
+                // if (typeof renderTable === 'function') renderTable(contenidoJson);
+            } else {
+                throw new Error("Error en el servidor");
+            }
+        } catch (error) {
+            console.error("Error:", error);
+            alert("No se pudo conectar con el servidor de base de datos.");
+            titulo.innerText = "Error de conexión";
+            sub.innerText = "Asegúrate de que el servidor Node.js esté encendido.";
+        }
+    };
+    lector.readAsText(archivo);
+}
