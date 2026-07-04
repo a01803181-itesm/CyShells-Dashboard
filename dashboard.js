@@ -1,4 +1,3 @@
-/* ── ESTADO GLOBAL ── */
 let allData = [];
 let charts = {};
 let currentFileName = 'sin cargar';
@@ -6,15 +5,13 @@ const IGNORED_HASHTAG_BASE = new Set([
   'fyp', 'foryou', 'foryoupage', 'fy', 'viral', 'trending', 'parati', 'para_ti'
 ]);
 
-/* ── CARGA DESDE SERVIDOR ── */
 async function fetchDataFromServer() {
   try {
     showToast('Conectando con el servidor...');
-    const response = await fetch('http://3.137.137.166:3000/api/data');
+    const response = await fetch('https://hhznmquwyqbtanmenuaef4khjq0iydbt.lambda-url.us-east-2.on.aws/');
     if (!response.ok) throw new Error('Error en la respuesta del servidor');
     const data = await response.json();
     
-    // El servidor devuelve datos ya estructurados, pero pasamos por normalizeData por seguridad
     allData = normalizeData(data);
     setLoadedFileName('Base de Datos SQL');
     renderAll();
@@ -22,15 +19,11 @@ async function fetchDataFromServer() {
   } catch (error) {
     console.error('Error al cargar datos:', error);
     showToast('Error al conectar con SQL. ¿Está el servidor corriendo?');
-    // Si falla el servidor, cargamos ejemplos por defecto
-    loadSampleData();
   }
 }
 
-// Cargar automáticamente al iniciar
 window.addEventListener('DOMContentLoaded', fetchDataFromServer);
 
-/* ── CARGA DE ARCHIVO ── */
 document.getElementById('file-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -54,7 +47,6 @@ document.getElementById('file-input').addEventListener('change', e => {
   e.target.value = '';
 });
 
-/* ── DRAG & DROP ── */
 const dropZone = document.getElementById('drop-zone');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
@@ -87,7 +79,6 @@ function loadSampleData() {
   showToast('Datos de ejemplo cargados');
 }
 
-/* ── PARSE CSV ── */
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
@@ -179,7 +170,6 @@ function normalizeData(input) {
     .sort((a, b) => b.followers - a.followers);
 }
 
-/* ── RENDER EVERYTHING ── */
 function renderAll() {
   updateTimestamp();
   renderCards();
@@ -213,7 +203,6 @@ function setLoadedFileName(name) {
   }
 }
 
-/* ── TARJETAS ── */
 function renderCards() {
   const totalFollowers = allData.reduce((a,b) => a + (b.followers||0), 0);
   const totalPosts     = allData.reduce((a,b) => a + (b.publicaciones||0), 0);
@@ -237,7 +226,6 @@ function renderCards() {
   document.getElementById('stat-emoji').textContent = top1Emoji.length ? top1Emoji[0][0] : '—';
 }
 
-/* ── GRÁFICAS ── */
 const CHART_OPTS = {
   responsive: true,
   maintainAspectRatio: false,
@@ -715,7 +703,6 @@ async function procesarArchivo(evento) {
     const archivo = evento.target.files[0];
     if (!archivo) return;
 
-    // Referencias visuales para dar feedback
     const titulo = document.getElementById('import-title-text');
     const sub = document.getElementById('import-sub-text');
     
@@ -730,7 +717,6 @@ async function procesarArchivo(evento) {
         try {
             const contenidoJson = JSON.parse(e.target.result);
             
-            // Petición al servidor Node.js
             const respuesta = await fetch('http://localhost:3000/api/upload-json', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -741,9 +727,6 @@ async function procesarArchivo(evento) {
                 alert("¡Base de datos actualizada correctamente!");
                 titulo.innerText = "¡Sincronización Exitosa!";
                 sub.innerText = "Los datos del JSON ya están en tu base de datos SQL.";
-                
-                // Si tienes una función para refrescar la tabla, llámala aquí:
-                // if (typeof renderTable === 'function') renderTable(contenidoJson);
             } else {
                 throw new Error("Error en el servidor");
             }
