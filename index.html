@@ -839,7 +839,7 @@ const IGNORED_HASHTAG_BASE = new Set([
 async function fetchDataFromServer() {
   try {
     showToast('Conectando con el servidor...');
-    const response = await fetch('http://3.137.137.166:3000/api/data');
+    const response = await fetch('https://hhznmquwyqbtanmenuaef4khjq0iydbt.lambda-url.us-east-2.on.aws/');
     if (!response.ok) throw new Error('Error en la respuesta del servidor');
     const data = await response.json();
     
@@ -851,8 +851,6 @@ async function fetchDataFromServer() {
   } catch (error) {
     console.error('Error al cargar datos:', error);
     showToast('Error al conectar con SQL. ¿Está el servidor corriendo?');
-    // Si falla el servidor, cargamos ejemplos por defecto
-    loadSampleData();
   }
 }
 
@@ -908,13 +906,6 @@ dropZone.addEventListener('drop', e => {
   };
   reader.readAsText(file);
 });
-
-function loadSampleData() {
-  allData = normalizeData(SAMPLE_DATA);
-  setLoadedFileName('datos de ejemplo');
-  renderAll();
-  showToast('Datos de ejemplo cargados');
-}
 
 /* ── PARSE CSV ── */
 function parseCSV(text) {
