@@ -227,7 +227,8 @@ function renderCards() {
   document.getElementById('risk-safe-count').textContent = safeCount;
   document.getElementById('risk-unsafe-count').textContent = unsafeCount;
 
-  const tagFreq = countFreq(allData.flatMap(d => d.hashtags || []));
+  const validTags = allData.flatMap(d => (d.hashtags || []).filter(h => !shouldIgnoreHashtag(h)));
+  const tagFreq = countFreq(validTags);
   const top1Tag = topN(tagFreq, 1);
   document.getElementById('stat-hashtag').textContent = top1Tag.length ? top1Tag[0][0] : '—';
 
@@ -441,11 +442,9 @@ function renderTable(data) {
     const riskLabel = normalizeRiskLabel(row.riesgo || row.label || row.riskLabel);
     const riskClass = riskLabel === 'muy peligroso' ? 'risk-high' : (riskLabel === 'intermedio' ? 'risk-mid' : 'risk-safe');
     const accountClass = riskLabel === 'muy peligroso' ? 'account-name risk-high-name' : 'account-name';
-    const profileUrl = String(row.profileUrl || '').trim();
-    const safeUrl = escapeHtml(profileUrl);
-    const accountNameHtml = profileUrl
-      ? `<span class="account-name-wrap"><span class="${accountClass}">${row.cuenta}</span><span class="account-link-pop"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a></span></span>`
-      : `<span class="${accountClass}">${row.cuenta}</span>`;
+    const tiktokUrl = `https://www.tiktok.com/${row.cuenta.startsWith('@') ? row.cuenta : '@' + row.cuenta}`;
+    const safeUrl = escapeHtml(tiktokUrl);
+    const accountNameHtml = `<span class="account-name-wrap"><span class="${accountClass}">${row.cuenta}</span><span class="account-link-pop"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a></span></span>`;
     return `<tr>
       <td><div class="td-account"><div class="account-avatar">${initials}</div>${accountNameHtml}</div></td>
       <td><div class="tags"><span class="tag risk ${riskClass}">${riskLabel}</span></div></td>
@@ -575,7 +574,7 @@ function shouldIgnoreHashtag(tag) {
   const clean = String(tag || '').replace(/^#/, '').toLowerCase().trim();
   if (!clean) return true;
   if (IGNORED_HASHTAG_BASE.has(clean)) return true;
-  if (/^fyp+$/.test(clean)) return true;
+  if (clean.includes('fyp') || clean.includes('parati') || clean.includes('viral') || clean.includes('foryoupage')) return true;
   return false;
 }
 function updateIgnoredHashtagInfo(ignoredSet) {
@@ -711,8 +710,6 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
-
-// --- PEGAR ESTO AL FINAL DE TU <SCRIPT> ---
 
 async function procesarArchivo(evento) {
     const archivo = evento.target.files[0];

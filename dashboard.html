@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CyShells — Dashboard Monitoreo TikTok</title>
+<title>CyShells: Monitoreo TikTok</title>
 <link rel="icon" type="image/png" href="/media_sources/cy_shell_logo_cyan.png">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="dashboard.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 </style>
@@ -25,7 +26,6 @@
 
 <main>
 
-  <!-- IMPORT -->
   <div class="import-zone" id="drop-zone">
   <div class="import-left">
     <div class="import-icon">
@@ -44,26 +44,6 @@
 </div>
 
 <input type="file" id="file-input" accept=".json" style="display:none" onchange="procesarArchivo(event)">
-
-  <!-- <div class="import-zone" id="drop-zone">
-    <div class="import-left">
-      <div class="import-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M8 12l4-4 4 4M12 4v12"/>
-        </svg>
-      </div>
-      <div>
-        <div class="import-title" id="import-title-text">Importar Datos</div>
-        <div class="import-sub" id="import-sub-text">Arrastra un archivo JSON o CSV exportado desde Apify / Octoparse</div>
-      </div>
-    </div>
-    <div class="import-actions">
-      <button class="btn btn-teal" onclick="document.getElementById('file-input').click()">Cargar archivo</button>
-    </div>
-  </div>
-  <input type="file" id="file-input" accept=".json,.csv"> -->
-
-  <!-- MÉTRICAS -->
   <div class="section-header">
     <span class="section-label">Resumen</span>
     <div class="section-line"></div>
@@ -106,7 +86,7 @@
     </div>
   </div>
 
-  <!-- GRÁFICAS FILA 1 -->
+  <!-- GRÁFICAS -->
   <div class="section-header">
     <span class="section-label">Gráficas</span>
     <div class="section-line"></div>
@@ -202,7 +182,7 @@
     </div>
   </div>
 
-  <!-- EXPORT -->
+  <!-- EXPORTAR -->
   <div class="export-bar">
     <span class="export-label">exportar:</span>
     <button class="btn btn-secondary" onclick="exportJSON()">JSON</button>
@@ -215,7 +195,6 @@
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
-</script>
+<script src="dashboard.js"></script>
 </body>
 </html>
