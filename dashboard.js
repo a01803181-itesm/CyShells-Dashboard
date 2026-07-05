@@ -72,13 +72,6 @@ dropZone.addEventListener('drop', e => {
   reader.readAsText(file);
 });
 
-function loadSampleData() {
-  allData = normalizeData(SAMPLE_DATA);
-  setLoadedFileName('datos de ejemplo');
-  renderAll();
-  showToast('Datos de ejemplo cargados');
-}
-
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
@@ -101,6 +94,34 @@ function parseCSV(text) {
 }
 
 function normalizeData(input) {
+  if (!Array.isArray(input)) return [];
+  
+  return input.map(row => {
+    if (!row) return null;
+
+    let risk = String(row.riesgo || row.label || row.riskLabel || 'SEGURO').toUpperCase();
+
+    if (risk.includes('PELIGROSO') || risk.includes('CRÍTICO') || risk.includes('INTERMEDIO')) {
+      risk = 'PELIGROSO';
+    } else {
+      risk = 'SEGURO';
+    }
+
+    return {
+      cuenta: String(row.cuenta || row.username || row.author || 'Anónimo'),
+      followers: Number(row.followers || row.followersCount) || 0,
+      publicaciones: Number(row.publicaciones) || 0,
+      comentarios: Number(row.comentarios) || 0,
+      hashtags: toUniqueArray(row.hashtags),
+      emojis: toUniqueArray(row.emojis),
+      musica: toUniqueArray(row.musica),
+      riesgo: risk,
+      profileUrl: row.profileUrl || row.profileurl || ''
+    }
+  }).filter(Boolean);
+}
+
+function formerNormalizeData(input) {
   if (!Array.isArray(input)) return [];
   if (!input.length) return [];
   const first = input[0];
@@ -427,9 +448,9 @@ function renderTable(data) {
     const htags = (row.hashtags||[]).slice(0,4).map(h => `<span class="tag hashtag">${h}</span>`).join('');
     const emjs  = (row.emojis||[]).slice(0,4).map(e => `<span class="tag emoji">${e}</span>`).join('');
     const music = (row.musica||[]).slice(0,2).map(m => `<span class="tag music">${m.length>28?m.slice(0,28)+'…':m}</span>`).join('');
-    const riskLabel = normalizeRiskLabel(row.riesgo || row.label || row.riskLabel);
-    const riskClass = riskLabel === 'muy peligroso' ? 'risk-high' : (riskLabel === 'intermedio' ? 'risk-mid' : 'risk-safe');
-    const accountClass = riskLabel === 'muy peligroso' ? 'account-name risk-high-name' : 'account-name';
+    const riskLabel = row.riesgo;
+    const riskClass = riskLabel === 'PELIGROSO' ? 'risk-high' : 'risk-safe';
+    const accountClass = riskLabel === 'PELIGROSO' ? 'account-name risk-high-name' : 'account-name';
     const tiktokUrl = `https://www.tiktok.com/${row.cuenta.startsWith('@') ? row.cuenta : '@' + row.cuenta}`;
     const safeUrl = escapeHtml(tiktokUrl);
     const accountNameHtml = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="${accountClass}" style="text-decoration: none;">${row.cuenta}</a>`;
@@ -597,7 +618,7 @@ function populateSelectWithRepeated(selectId, defaultLabel, entries) {
   }
 }
 function populateTableFilters() {
-  const riesgoFreq = countFreq(allData.map(d => normalizeRiskLabel(d.riesgo || d.label || d.riskLabel)));
+  const riesgoFreq = countFreq(allData.map(d => d.riesgo));
   const hashtagFreq = countRepeatedValuesByAccount(allData, 'hashtags');
   const musicaFreq = countRepeatedValuesByAccount(allData, 'musica');
 
@@ -626,7 +647,7 @@ function applyTableFilters() {
 
   const filtered = allData.filter(row => {
     if (q && !(row.cuenta || '').toLowerCase().includes(q)) return false;
-    const rowRisk = normalizeRiskLabel(row.riesgo || row.label || row.riskLabel);
+    const rowRisk = row.riesgo;
     if (riesgo && rowRisk !== riesgo) return false;
     if (hashtag && !(row.hashtags || []).includes(hashtag)) return false;
     if (musica && !(row.musica || []).includes(musica)) return false;
