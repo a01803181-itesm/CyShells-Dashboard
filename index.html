@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CyShells: Monitoreo TikTok</title>
-<link rel="icon" type="image/png" href="/media_sources/cy_shell_logo_cyan.png">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="dashboard.css">
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CyShells: Monitoreo TikTok</title>
+  <link rel="icon" type="image/png" href="/media_sources/cy_shell_logo_cyan.png">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  </style>
 </head>
 <body>
 
@@ -26,7 +26,12 @@
 
 <main>
 
+  <!--
+  ORIGINAL
   <div class="import-zone" id="drop-zone">
+  -->
+  <div id="drop-zone">
+    <!--
   <div class="import-left">
     <div class="import-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -41,6 +46,7 @@
   <div class="import-actions">
     <button class="btn btn-teal" onclick="document.getElementById('file-input').click()">Cargar archivo</button>
   </div>
+  -->
 </div>
 
 <input type="file" id="file-input" accept=".json" style="display:none" onchange="procesarArchivo(event)">
