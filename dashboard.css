@@ -13,6 +13,8 @@
     --amber: #e8a83e;
     --teal: #3ecfb2;
     --blue: #4a9eff;
+    --blue2: #161E28;
+    --blue3: #203853;
     --chart1: #e8413e;
     --chart2: #e8a83e;
     --chart3: #3ecfb2;
@@ -70,14 +72,27 @@
     gap: 12px;
   }
   .badge-live {
+    background: var(--blue2);
+    border: 1px solid var(--blue3);
+    color: var(--blue);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    letter-spacing: 0.1em;
+  }
+  .exit-button {
     background: var(--red-dim);
-    border: 1px solid rgba(232,65,62,0.3);
+    border: 1px solid var(--red);
     color: var(--red2);
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     padding: 3px 10px;
     border-radius: 3px;
     letter-spacing: 0.1em;
+  }
+  .exit-button:hover {
+    cursor: pointer;
   }
   #last-update {
     font-family: 'IBM Plex Mono', monospace;
@@ -170,6 +185,14 @@
   .btn-teal:hover { background: rgba(62,207,178,0.08); }
 
   #file-input { display: none; }
+
+  .username {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
 
   .section-header {
     display: flex;
@@ -566,3 +589,6 @@
     z-index: 9999;
   }
   #toast.show { opacity: 1; transform: translateY(0); }
+  .hidden {
+    display: none;
+  }
