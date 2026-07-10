@@ -1,4 +1,5 @@
 let allData = [];
+let fullData = [];
 let charts = {};
 let currentFileName = 'sin cargar';
 const IGNORED_HASHTAG_BASE = new Set([
@@ -12,7 +13,8 @@ async function fetchDataFromServer() {
     if (!response.ok) throw new Error('Error en la respuesta del servidor');
     const data = await response.json();
     
-    allData = normalizeData(data);
+    fullData = normalizeData(data);
+    allData = fullData.filter(d => d.riesgo === 'PELIGROSO');
     setLoadedFileName('Base de Datos SQL');
     renderAll();
     showToast('Datos cargados desde SQL con éxito');
@@ -31,11 +33,12 @@ document.getElementById('file-input').addEventListener('change', e => {
   reader.onload = ev => {
     try {
       if (file.name.endsWith('.csv')) {
-        allData = normalizeData(parseCSV(ev.target.result));
+        fullData = normalizeData(parseCSV(ev.target.result));
       } else {
         const parsed = JSON.parse(ev.target.result);
-        allData = normalizeData(parsed);
+        fullData = normalizeData(parsed);
       }
+      allData = fullData.filter(d => d.riesgo === 'PELIGROSO');
       setLoadedFileName(file.name);
       renderAll();
       showToast('Archivo cargado: ' + file.name);
@@ -59,11 +62,12 @@ dropZone.addEventListener('drop', e => {
   reader.onload = ev => {
     try {
       if (file.name.endsWith('.csv')) {
-        allData = normalizeData(parseCSV(ev.target.result));
+        fullData = normalizeData(parseCSV(ev.target.result));
       } else {
         const parsed = JSON.parse(ev.target.result);
-        allData = normalizeData(parsed);
+        fullData = normalizeData(parsed);
       }
+      allData = fullData.filter(d => d.riesgo === 'PELIGROSO');
       setLoadedFileName(file.name);
       renderAll();
       showToast('Archivo cargado por drag & drop');
@@ -228,8 +232,9 @@ function renderCards() {
   const totalFollowers = allData.reduce((a,b) => a + (b.followers||0), 0);
   const totalPosts     = allData.reduce((a,b) => a + (b.publicaciones||0), 0);
   const totalComments  = allData.reduce((a,b) => a + (b.comentarios||0), 0);
-  const safeCount      = allData.filter(d => normalizeRiskLabel(d.riesgo || d.label || d.riskLabel) === 'seguro').length;
-  const unsafeCount    = Math.max(allData.length - safeCount, 0);
+  
+  const safeCount      = fullData.filter(d => d.riesgo === 'SEGURO').length;
+  const unsafeCount    = fullData.filter(d => d.riesgo === 'PELIGROSO').length;
   document.getElementById('stat-cuentas').textContent   = allData.length;
   document.getElementById('stat-followers').textContent = fmtNum(totalFollowers);
   document.getElementById('stat-posts').textContent     = fmtNum(totalPosts);
@@ -485,7 +490,7 @@ function exportCSV() {
   const headers = ['cuenta','followers','publicaciones','comentarios','hashtags','emojis','musica','riesgo'];
   const rows = allData.map(d => [
     d.cuenta, d.followers||0, d.publicaciones||0, d.comentarios||0,
-    (d.hashtags||[]).join('|'), (d.emojis||[]).join('|'), (d.musica||[]).join('|'), normalizeRiskLabel(d.riesgo || d.label || d.riskLabel)
+    (d.hashtags||[]).join('|'), (d.emojis||[]).join('|'), (d.musica||[]).join('|'), d.riesgo
   ]);
   const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   downloadBlob(new Blob([csv], {type:'text/csv'}), 'tiktok-monitor.csv');
@@ -679,7 +684,7 @@ function highestRisk(a, b) {
 function isHighRiskAccount(accountName) {
   const row = allData.find(d => (d.cuenta || '') === accountName);
   if (!row) return false;
-  return normalizeRiskLabel(row.riesgo || row.label || row.riskLabel) === 'muy peligroso';
+  return row.riesgo === 'PELIGROSO';
 }
 function normalizeHashtag(tag) {
   if (!tag) return '';
