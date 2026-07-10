@@ -25,15 +25,18 @@
             <h2 class="text-xl text-white font-bold text-center mb-6">¡Hola de Nuevo!</h2>
             <form id="login-form" class="space-y-8">
                 <div>
-                    <label class="block text-sm font-medium text-white">Nombre de usuario</label>
-                    <input type="text" id="email" class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required>
+                    <label class="block text-sm font-medium text-white">Correo Electrónico</label>
+                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required>
                 </div>
                 <dv>
                     <label class="block text-sm font-medium text-white">Contraseña</label>
                     <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary" required>
                 </dv>
                 <div>
-                    <p id="error-message" class="text-sm text-white text-center font-medium hidden">Error Label</p>
+                    <p id="feedback-message" class="text-sm text-white text-center font-medium hidden">Error Label</p>
+                </div>
+                <div class="flex items-center justify-center">
+                    <a href="#" id="forgot-password" class="text-sm text-primary hover:underline">Recuperar contraseña</a>
                 </div>
                 <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-white bg-primary hover:opacity-90 font-medium">
                     Acceder

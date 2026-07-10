@@ -16,7 +16,7 @@ const auth = getAuth(app);
 
 const loginForm = document.getElementById('login-form');
 const dashboardBody = document.getElementById('dashboard-body');
-const errorMessage = document.getElementById('error-message');
+const feedbackMessage = document.getElementById('feedback-message');
 
 const isLoginPage = loginForm !== null;
 const isDashboardPage = dashboardBody !== null;
@@ -39,7 +39,7 @@ onAuthStateChanged(auth, (user) => {
 if (isLoginPage) {
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        errorMessage.classList.add('hidden');
+        feedbackMessage.classList.add('hidden');
 
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
@@ -49,8 +49,31 @@ if (isLoginPage) {
 
         signInWithEmailAndPassword(auth, email, password)
             .catch((error) => {
-                errorMessage.textContent = 'Correo electrónico o contraseña incorrectos';
-                errorMessage.classList.remove('hidden');
+                feedbackMessage.textContent = 'Correo electrónico o contraseña incorrectos';
+                feedbackMessage.classList.remove('hidden');
+            });
+    });
+
+    document.getElementById('forgot-password').addEventListener('click', (e) => {
+        e.preventDefault();
+        feedbackMessage.classList.add('hidden');
+
+        const email = document.getElementById('email').value;
+        
+        if (!email) {
+            feedbackMessage.textContent = "Por favor, escribe primero tu dirección de correo electrónico en el campo de arriba y, a continuación, haz clic en «Recuperar Contraseña».";
+            feedbackMessage.classList.remove('hidden');
+            return;
+        }
+        
+        sendPasswordResetEmail(auth, email)
+            .then(() => {
+                feedbackMessage.textContent = "¡Ya te hemos enviado el correo electrónico para restablecer la contraseña! Comprueba tu bandeja de entrada (y también spam)";
+                feedbackMessage.classList.remove('hidden');
+            })
+            .catch((error) => {
+                feedbackMessage.textContent = "Se ha producido un error al enviar el correo electrónico de restablecimiento. Asegúrate de que la dirección de correo electrónico es correcta";
+                feedbackMessage.classList.remove('hidden');
             });
     });
 }
