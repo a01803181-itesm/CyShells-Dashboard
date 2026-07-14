@@ -2,7 +2,7 @@ let allData = [];
 let charts = {};
 let currentFileName = 'sin cargar';
 const IGNORED_HASHTAG_BASE = new Set([
-  'fyp', 'foryou', 'foryoupage', 'fy', 'funny', 'viral', 'trending', 'parati', 'para_ti'
+  'fyp', 'foryou', 'foryoupage', 'fy', 'viral', 'trending', 'parati', 'para_ti'
 ]);
 
 async function fetchDataFromServer() {
@@ -21,6 +21,53 @@ async function fetchDataFromServer() {
     showToast('Error al conectar con SQL. ¿Está el servidor corriendo?');
   }
 }
+
+const CHART_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } }
+  }
+};
+
+const RANGE_OPTS = {
+  ...CHART_OPTS,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      enabled: false,
+      external: renderRangeTooltip
+    }
+  }
+};
+
+const HORIZ_OPTS = {
+  indexAxis: 'y',
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: ctx => `Cuentas: ${ctx.raw}`,
+        afterBody: items => {
+          const item = items && items.length ? items[0] : null;
+          const label = item?.label;
+          const membersByLabel = item?.dataset?.membersByLabel || {};
+          const members = label ? (membersByLabel[label] || []) : [];
+          if (!members.length) return [];
+          return ['---', ...members.map(name => `• ${name}`)];
+        }
+      }
+    }
+  },
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b92a0', font: { family: 'IBM Plex Mono', size: 11 } } }
+  }
+};
 
 // --- 1. SPA NAVIGATION LOGIC ---
 function switchTab(tabId, title) {
@@ -136,75 +183,6 @@ window.addEventListener('DOMContentLoaded', () => {
   populateOmegaTable();
 });
 
-document.getElementById('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      if (file.name.endsWith('.csv')) {
-        allData = normalizeData(parseCSV(ev.target.result));
-      } else {
-        const parsed = JSON.parse(ev.target.result);
-        allData = normalizeData(parsed);
-      }
-      setLoadedFileName(file.name);
-      renderAll();
-      showToast('Archivo cargado: ' + file.name);
-    } catch(err) {
-      showToast('Error al parsear el archivo');
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
-});
-
-const dropZone = document.getElementById('drop-zone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      if (file.name.endsWith('.csv')) {
-        allData = normalizeData(parseCSV(ev.target.result));
-      } else {
-        const parsed = JSON.parse(ev.target.result);
-        allData = normalizeData(parsed);
-      }
-      setLoadedFileName(file.name);
-      renderAll();
-      showToast('Archivo cargado por drag & drop');
-    } catch { showToast('Error al parsear el archivo'); }
-  };
-  reader.readAsText(file);
-});
-
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
-  return lines.slice(1).map(line => {
-    const vals = line.split(',').map(v => v.replace(/"/g,'').trim());
-    const obj = {};
-    headers.forEach((h,i) => obj[h] = vals[i] || '');
-    return {
-      cuenta: obj.cuenta || obj.account || obj.username || '',
-      followers: parseInt(obj.followers || obj.seguidores || 0),
-      publicaciones: parseInt(obj.publicaciones || obj.posts || 0),
-      comentarios: parseInt(obj.comentarios || obj.comments || 0),
-      hashtags: (obj.hashtags || '').split('|').filter(Boolean),
-      emojis: (obj.emojis || '').split('|').filter(Boolean),
-      musica: (obj.musica || obj.music || '').split('|').filter(Boolean),
-      riesgo: obj.riesgo || obj.label || obj.riskLabel || 'seguro',
-      profileUrl: obj.profileUrl || obj.profileurl || ''
-    };
-  }).filter(r => r.cuenta);
-}
-
 function normalizeData(input) {
   if (!Array.isArray(input)) return [];
   
@@ -276,8 +254,6 @@ function renderCards() {
   document.getElementById('stat-followers').textContent = fmtNum(totalFollowers);
   document.getElementById('stat-posts').textContent     = fmtNum(totalPosts);
   document.getElementById('stat-comments').textContent  = fmtNum(totalComments);
-  document.getElementById('risk-safe-count').textContent = safeCount;
-  document.getElementById('risk-unsafe-count').textContent = unsafeCount;
 
   const validTags = allData.flatMap(d => (d.hashtags || []).filter(h => !shouldIgnoreHashtag(h)));
   const tagFreq = countFreq(validTags);
@@ -288,51 +264,6 @@ function renderCards() {
   const top1Emoji = topN(emojiFreq, 1);
   document.getElementById('stat-emoji').textContent = top1Emoji.length ? top1Emoji[0][0] : '—';
 }
-
-const CHART_OPTS = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: {
-    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
-    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } }
-  }
-};
-const RANGE_OPTS = {
-  ...CHART_OPTS,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      enabled: false,
-      external: renderRangeTooltip
-    }
-  }
-};
-const HORIZ_OPTS = {
-  indexAxis: 'y',
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      callbacks: {
-        label: ctx => `Cuentas: ${ctx.raw}`,
-        afterBody: items => {
-          const item = items && items.length ? items[0] : null;
-          const label = item?.label;
-          const membersByLabel = item?.dataset?.membersByLabel || {};
-          const members = label ? (membersByLabel[label] || []) : [];
-          if (!members.length) return [];
-          return ['---', ...members.map(name => `• ${name}`)];
-        }
-      }
-    }
-  },
-  scales: {
-    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#555d6b', font: { family: 'IBM Plex Mono', size: 10 } } },
-    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b92a0', font: { family: 'IBM Plex Mono', size: 11 } } }
-  }
-};
 
 function makeChart(id, type, labels, data, color, opts, extraDatasetProps = {}) {
   if (charts[id]) charts[id].destroy();
