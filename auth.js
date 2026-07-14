@@ -79,7 +79,7 @@ if (isLoginPage) {
 }
 
 if (isDashboardPage) {
-    document.getElementById('logout-button').addEventListener('click', () => {
+    document.getElementById('nav-logout').addEventListener('click', () => {
         signOut(auth).then(() => {});
     });
 }

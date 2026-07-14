@@ -2,7 +2,7 @@ let allData = [];
 let charts = {};
 let currentFileName = 'sin cargar';
 const IGNORED_HASHTAG_BASE = new Set([
-  'fyp', 'foryou', 'foryoupage', 'fy', 'viral', 'trending', 'parati', 'para_ti'
+  'fyp', 'foryou', 'foryoupage', 'fy', 'funny', 'viral', 'trending', 'parati', 'para_ti'
 ]);
 
 async function fetchDataFromServer() {
@@ -22,7 +22,119 @@ async function fetchDataFromServer() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', fetchDataFromServer);
+// --- 1. SPA NAVIGATION LOGIC ---
+function switchTab(tabId, title) {
+  // Ocultar todas las secciones
+  document.querySelectorAll('.page-section').forEach(section => {
+    section.classList.remove('active');
+  });
+  
+  // Quitar activo de todos los items del menú
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  // Mostrar la sección seleccionada
+  document.getElementById(`section-${tabId}`).classList.add('active');
+  
+  // Marcar item del menú (buscando por el onclick text)
+  event.currentTarget.classList.add('active');
+
+  // Actualizar Título
+  document.getElementById('header-title').innerText = title;
+}
+
+
+// --- 2. OMEGA FILTER LOGIC ---
+
+// Mock Data simulando la respuesta de tu script de Python (YOLO) + Base de datos
+const mockOmegaData = [
+  {
+    id: "7658047432466386",
+    user: "@comandox_oficial",
+    nivel: "ALTO",
+    amenazas: ["weapon (pistol)", "vehicle (truck)"],
+    // Usamos una URL genérica de Unsplash para simular la imagen procesada
+    imgUrl: "https://images.unsplash.com/photo-1595590424283-b8f1784cb2c8?auto=format&fit=crop&q=80&w=600" 
+  },
+  {
+    id: "7586032009030487",
+    user: "@sicario_belico",
+    nivel: "ALTO",
+    amenazas: ["weapon (rifle)", "weapon (shotgun)"],
+    imgUrl: "https://images.unsplash.com/photo-1584345688544-7c2a71f76d4f?auto=format&fit=crop&q=80&w=600"
+  },
+  {
+    id: "7639955924337184",
+    user: "@patron_jalisco",
+    nivel: "MEDIO",
+    amenazas: ["vehicle (suv)"],
+    imgUrl: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=600"
+  }
+];
+
+// Llenar la tabla del Filtro Omega
+function populateOmegaTable() {
+  const tbody = document.getElementById('omega-tbody');
+  tbody.innerHTML = '';
+
+  mockOmegaData.forEach((data, index) => {
+    const tr = document.createElement('tr');
+    
+    // Estilo dinámico para el badge
+    const badgeStyle = data.nivel === 'ALTO' ? 'badge-danger' : 'badge-danger'; // Simplificado
+    
+    tr.innerHTML = `
+      <td style="font-family: 'IBM Plex Mono'; font-size: 0.85rem;">${data.id}</td>
+      <td style="color: var(--cyan);">${data.user}</td>
+      <td><span class="${badgeStyle}">${data.nivel}</span></td>
+      <td>
+        <button style="background:none; border:1px solid var(--border-strong); color:var(--text-main); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
+                onclick="showOmegaPreview(${index})">
+          Analizar 👁️
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Mostrar el preview de la imagen cuando se hace click en "Analizar"
+function showOmegaPreview(index) {
+  const data = mockOmegaData[index];
+  
+  // Ocultar estado vacío, mostrar panel
+  document.getElementById('preview-empty').style.display = 'none';
+  document.getElementById('preview-panel').style.display = 'flex';
+
+  // Llenar datos
+  document.getElementById('det-id').innerText = data.id;
+  document.getElementById('det-user').innerText = data.user;
+  
+  const ul = document.getElementById('det-threats');
+  ul.innerHTML = '';
+  data.amenazas.forEach(amenaza => {
+    const li = document.createElement('li');
+    li.innerText = amenaza;
+    ul.appendChild(li);
+  });
+
+  // Insertar imagen
+  const imgContainer = document.getElementById('preview-image');
+  imgContainer.style.backgroundImage = `url('${data.imgUrl}')`;
+  
+  // Dibujar unas "cajas delimitadoras" falsas sobre la imagen para simular YOLO
+  imgContainer.innerHTML = `
+    <div style="position:absolute; top:30%; left:40%; width: 25%; height: 25%; border: 2px solid var(--red); background: rgba(232, 65, 62, 0.1);">
+      <span style="background: var(--red); color: white; font-size: 10px; padding: 2px; position: absolute; top: -16px; left: -2px; font-weight: bold;">WEAPON 0.89</span>
+    </div>
+  `;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  fetchDataFromServer();
+  populateOmegaTable();
+});
 
 document.getElementById('file-input').addEventListener('change', e => {
   const file = e.target.files[0];
@@ -119,76 +231,6 @@ function normalizeData(input) {
       profileUrl: row.profileUrl || row.profileurl || ''
     }
   }).filter(Boolean);
-}
-
-function formerNormalizeData(input) {
-  if (!Array.isArray(input)) return [];
-  if (!input.length) return [];
-  const first = input[0];
-  if (first && typeof first === 'object' && (
-    Object.prototype.hasOwnProperty.call(first, 'cuenta') ||
-    Object.prototype.hasOwnProperty.call(first, 'followers') ||
-    Object.prototype.hasOwnProperty.call(first, 'publicaciones')
-  )) {
-    return input.map(row => ({
-      cuenta: row.cuenta || '',
-      followers: Number(row.followers) || 0,
-      publicaciones: Number(row.publicaciones) || 0,
-      comentarios: Number(row.comentarios) || 0,
-      hashtags: toUniqueArray(row.hashtags),
-      emojis: toUniqueArray(row.emojis),
-      musica: toUniqueArray(row.musica),
-      riesgo: normalizeRiskLabel(row.riesgo || row.label || row.riskLabel),
-      profileUrl: row.profileUrl || row.profileurl || ''
-    })).filter(r => r.cuenta);
-  }
-
-  const grouped = {};
-  input.forEach(item => {
-    if (!item || typeof item !== 'object') return;
-    const username = item.authorMeta?.name || item.authorMeta?.nickName || '';
-    if (!username) return;
-    const cuenta = username.startsWith('@') ? username : '@' + username;
-    if (!grouped[cuenta]) {
-      grouped[cuenta] = {
-        cuenta,
-        followers: 0,
-        publicaciones: 0,
-        comentarios: 0,
-        hashtagsSet: new Set(),
-        emojisSet: new Set(),
-        musicaSet: new Set(),
-        riskLevel: 'seguro',
-        profileUrl: ''
-      };
-    }
-    const row = grouped[cuenta];
-    row.followers = Math.max(row.followers, Number(item.authorMeta?.fans) || 0);
-    row.publicaciones += 1;
-    row.comentarios += Number(item.commentCount) || 0;
-
-    extractHashtags(item).forEach(h => row.hashtagsSet.add(h));
-    extractEmojis(item.text).forEach(e => row.emojisSet.add(e));
-    const song = item.musicMeta?.musicName;
-    if (song && typeof song === 'string') row.musicaSet.add(song.trim());
-    const itemRisk = normalizeRiskLabel(item.label || item.riesgo || item.riskLabel);
-    row.riskLevel = highestRisk(row.riskLevel, itemRisk);
-    if (!row.profileUrl && item.authorMeta?.profileUrl) row.profileUrl = String(item.authorMeta.profileUrl);
-  });
-
-  return Object.values(grouped)
-    .map(r => ({
-      cuenta: r.cuenta,
-      followers: r.followers,
-      publicaciones: r.publicaciones,
-      comentarios: r.comentarios,
-      hashtags: Array.from(r.hashtagsSet),
-      emojis: Array.from(r.emojisSet),
-      musica: Array.from(r.musicaSet),
-      riesgo: r.riskLevel,
-      profileUrl: r.profileUrl
-    }))
-    .sort((a, b) => b.followers - a.followers);
 }
 
 function renderAll() {
