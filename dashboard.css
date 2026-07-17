@@ -51,7 +51,7 @@ body {
 }
 
 .sidebar:hover {
-    width: 220px;
+    width: 250px;
     align-items: flex-start;
     padding-left: 1rem;
     padding-right: 1rem;
@@ -488,7 +488,55 @@ header {
     display: grid;
     grid-template-columns: 1fr 1.5fr;
     gap: 2rem;
-    height: calc(100vh - 150px);
+    min-height: calc(100vh - 220px);
+}
+
+.image-container {
+    border-radius: 8px;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.image-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    height: 100%;
+}
+
+.close-preview-btn {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 32px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 20;
+    transition: var(--transition);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.close-preview-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.close-preview-btn:hover {
+    background: var(--red);
+    color: white;
+    border-color: var(--red);
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 0 15px var(--red-glow);
 }
 
 /* The Funnel */
@@ -558,6 +606,7 @@ thead tr { border-bottom: 1px solid var(--border); }
 th, td { padding: 1rem; border-bottom: 1px solid var(--border); }
 th { background: rgba(0,0,0,0.2); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: var(--text-muted); }
 tr:hover { background: var(--bg-hover); cursor: pointer; }
+tr.selected { background: #192846; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--bg-hover); }
 
@@ -604,7 +653,16 @@ a.account-name:hover { text-decoration: underline; }
 .tag.risk-mid { color: var(--amber); border-color: rgba(232,168,62,0.35); background: rgba(232,168,62,0.12); }
 .tag.risk-safe { color: var(--teal); border-color: rgba(62,207,178,0.35); background: rgba(62,207,178,0.12); }
 
-.badge-danger { background: var(--red-glow); color: var(--red); padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; border: 1px solid var(--red); }
+.badge-risk {
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.badge-risk.medium { background: rgba(232,168,62,0.12); color: var(--amber); border: 1px solid var(--amber); }
+.badge-risk.high { background: var(--red-glow); color: var(--red2); border: 1px solid var(--red2); }
+.badge-risk.null { background: rgba(52, 52, 52, 0.28); color: rgba(255, 255, 255, 0.6); border: 1px solid rgba(255, 255, 255, 0.6); }
 
 /* Image Preview Panel */
 .preview-panel {
@@ -680,6 +738,7 @@ footer {
     font-size: 11px;
     color: var(--text3);
     letter-spacing: 0.05em;
+    margin-top: auto;
 }
 
 #toast {

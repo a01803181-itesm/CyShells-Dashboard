@@ -1,3 +1,20 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+import { getStorage, ref, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBySfPYg6bqinjrK6vJURO4EYGZsBLLrUU",
+  authDomain: "cyshells-6540a.firebaseapp.com",
+  projectId: "cyshells-6540a",
+  storageBucket: "cyshells-6540a.firebasestorage.app",
+  messagingSenderId: "933233470258",
+  appId: "1:933233470258:web:ad33d509ab9599a09f052b",
+  measurementId: "G-MBT02DLP1W"
+};
+
+const app = initializeApp(firebaseConfig);
+
+const omegaRegisters = new Map();
+
 let allData = [];
 let charts = {};
 let currentFileName = 'sin cargar';
@@ -91,54 +108,112 @@ function switchTab(tabId, title) {
   document.getElementById('header-title').innerText = title;
 }
 
+let omegaData = [];
 
-// --- 2. OMEGA FILTER LOGIC ---
+let previousSelectedRow = null;
 
-// Mock Data simulando la respuesta de tu script de Python (YOLO) + Base de datos
-const mockOmegaData = [
-  {
-    id: "7658047432466386",
-    user: "@comandox_oficial",
-    nivel: "ALTO",
-    amenazas: ["weapon (pistol)", "vehicle (truck)"],
-    // Usamos una URL genérica de Unsplash para simular la imagen procesada
-    imgUrl: "https://images.unsplash.com/photo-1595590424283-b8f1784cb2c8?auto=format&fit=crop&q=80&w=600" 
-  },
-  {
-    id: "7586032009030487",
-    user: "@sicario_belico",
-    nivel: "ALTO",
-    amenazas: ["weapon (rifle)", "weapon (shotgun)"],
-    imgUrl: "https://images.unsplash.com/photo-1584345688544-7c2a71f76d4f?auto=format&fit=crop&q=80&w=600"
-  },
-  {
-    id: "7639955924337184",
-    user: "@patron_jalisco",
-    nivel: "MEDIO",
-    amenazas: ["vehicle (suv)"],
-    imgUrl: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=600"
-  }
-];
+async function populateOmegaTable() {
 
-// Llenar la tabla del Filtro Omega
-function populateOmegaTable() {
+  const storage = getStorage(app);
+  const parentDir = ref(storage, 'OmegaAnalysis/');
+  const root = await listAll(parentDir);
+
+  await Promise.all(
+    root.prefixes.map(async (folderRef) => {
+      console.log(`Checking directory: ${folderRef.fullPath}`);
+      const subfolderResult = await listAll(folderRef);
+
+      const regex = /([0-9]{19})_(alto|medio|nulo)\.jpg/;
+
+      const filePromises = subfolderResult.items.map(async (itemRef) => {
+
+        const match = itemRef.name.match(regex);
+        if (!match) return;
+
+        const videoID = match[1];
+        const risk = match[2];
+        const username = itemRef.fullPath.split("/")[1];
+
+        let fileURL = null;
+        const fileRef = ref(storage, itemRef.fullPath);
+
+        try {
+          fileURL = await getDownloadURL(fileRef);
+        } catch (error) {
+          console.error("Error getting download URL:", error);
+        }
+
+        omegaData.push({
+          id: videoID,
+          user: "@" + username,
+          nivel: risk.toUpperCase(),
+          amenazas: [],
+          imgUrl: fileURL
+        });
+
+        console.log(`videoID: ${videoID}. Risk: ${risk}. Username: ${username}`);
+      });
+
+      await Promise.all(filePromises);
+    })
+  );
+
   const tbody = document.getElementById('omega-tbody');
   tbody.innerHTML = '';
 
-  mockOmegaData.forEach((data, index) => {
+  omegaData.forEach((data, index) => {
+
+    let badgeClass;
+    switch (data.nivel) {
+      case 'ALTO':
+        badgeClass = 'badge-risk high';
+        break;
+      case 'MEDIO':
+        badgeClass = 'badge-risk medium';
+        break;
+      default:
+        badgeClass = 'badge-risk null';
+        break;
+    }
+
     const tr = document.createElement('tr');
-    
-    // Estilo dinámico para el badge
-    const badgeStyle = data.nivel === 'ALTO' ? 'badge-danger' : 'badge-danger'; // Simplificado
-    
+    tr.id = `row-${data.id}`;
+    tr.style.cursor = 'default';
+
     tr.innerHTML = `
-      <td style="font-family: 'IBM Plex Mono'; font-size: 0.85rem;">${data.id}</td>
-      <td style="color: var(--cyan);">${data.user}</td>
-      <td><span class="${badgeStyle}">${data.nivel}</span></td>
+      <td style="font-family: 'IBM Plex Mono'; font-size: 0.85rem;">
+        <span style="cursor: pointer;" onclick="window.open('https://www.tiktok.com/${data.user}/video/${data.id}')">
+          ${data.id}
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M0 0h24v24H0z" fill="none" />
+            <path fill="currentColor" d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6v2H5v12h12v-6zM13 3v2h4.586l-7.793 7.793l1.414 1.414L19 6.414V11h2V3z" />
+          </svg>
+        </span>
+      </td>
+      <td>
+        <span style="cursor: pointer;" onclick="window.open('https://www.tiktok.com/${data.user}')">
+          ${data.user}
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M0 0h24v24H0z" fill="none" />
+            <path fill="currentColor" d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6v2H5v12h12v-6zM13 3v2h4.586l-7.793 7.793l1.414 1.414L19 6.414V11h2V3z" />
+          </svg>
+        </span>
+      </td>
+      <td><span class="${badgeClass}">${data.nivel}</span></td>
       <td>
         <button style="background:none; border:1px solid var(--border-strong); color:var(--text-main); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;"
                 onclick="showOmegaPreview(${index})">
-          Analizar 👁️
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M0 0h24v24H0z" fill="none" />
+            <path fill="currentColor" d="M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6" />
+            <path fill="currentColor" d="M12 19c7.63 0 9.93-6.62 9.95-6.68c.07-.21.07-.43 0-.63c-.02-.07-2.32-6.68-9.95-6.68s-9.93 6.61-9.95 6.67c-.07.21-.07.43 0 .63c.02.07 2.32 6.68 9.95 6.68Zm0-12c5.35 0 7.42 3.85 7.93 5c-.5 1.16-2.58 5-7.93 5s-7.42-3.84-7.93-5c.5-1.16 2.58-5 7.93-5" />
+          </svg>
+        </button>
+        <button onclick="downloadFile('${data.imgUrl}', '${data.id}', '${data.user}', '${data.nivel}')" style="background:none; border:1px solid var(--border-strong); color:var(--text-main); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+            <path d="M0 0h24v24H0z" fill="none" />
+            <path fill="currentColor" d="M11.625 15.513q-.175-.063-.325-.213l-3.6-3.6q-.3-.3-.288-.7t.288-.7q.3-.3.713-.312t.712.287L11 12.15V5q0-.425.288-.712T12 4t.713.288T13 5v7.15l1.875-1.875q.3-.3.713-.288t.712.313q.275.3.288.7t-.288.7l-3.6 3.6q-.15.15-.325.213t-.375.062t-.375-.062M6 20q-.825 0-1.412-.587T4 18v-2q0-.425.288-.712T5 15t.713.288T6 16v2h12v-2q0-.425.288-.712T19 15t.713.288T20 16v2q0 .825-.587 1.413T18 20z" />
+          </svg>
         </button>
       </td>
     `;
@@ -146,36 +221,67 @@ function populateOmegaTable() {
   });
 }
 
+async function downloadFile(url, videoID, username, risk) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Network response was not ok");
+    const blob = await response.blob();
+
+    const blobUrl = window.URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `${videoID}_${username.split('@')[1]}_${risk.toLowerCase()}.jpg`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error("Fetch failed:", error);
+  }
+}
+
+function closeOmegaPreview() {
+  document.getElementById(`row-${previousSelectedRow}`).classList.remove('selected');
+
+  previousSelectedRow = null;
+
+  document.getElementById('image-preview-container').style.display = 'none';
+
+  document.getElementById('ict-title').classList.remove('hidden');
+  document.getElementById('step-alpha').classList.remove('hidden');
+  document.getElementById('step-beta').classList.remove('hidden');
+  document.getElementById('step-omega').classList.remove('hidden');
+  document.getElementById('connector-1').classList.remove('hidden');
+  document.getElementById('connector-2').classList.remove('hidden');
+
+  const currentImage = document.getElementById('image-preview');
+  currentImage.src = null;
+}
+
 // Mostrar el preview de la imagen cuando se hace click en "Analizar"
 function showOmegaPreview(index) {
-  const data = mockOmegaData[index];
-  
-  // Ocultar estado vacío, mostrar panel
-  document.getElementById('preview-empty').style.display = 'none';
-  document.getElementById('preview-panel').style.display = 'flex';
+  if (previousSelectedRow != null) {
+    document.getElementById(`row-${previousSelectedRow}`).classList.remove('selected');
+  }
 
-  // Llenar datos
-  document.getElementById('det-id').innerText = data.id;
-  document.getElementById('det-user').innerText = data.user;
-  
-  const ul = document.getElementById('det-threats');
-  ul.innerHTML = '';
-  data.amenazas.forEach(amenaza => {
-    const li = document.createElement('li');
-    li.innerText = amenaza;
-    ul.appendChild(li);
-  });
+  const data = omegaData[index];
 
-  // Insertar imagen
-  const imgContainer = document.getElementById('preview-image');
-  imgContainer.style.backgroundImage = `url('${data.imgUrl}')`;
-  
-  // Dibujar unas "cajas delimitadoras" falsas sobre la imagen para simular YOLO
-  imgContainer.innerHTML = `
-    <div style="position:absolute; top:30%; left:40%; width: 25%; height: 25%; border: 2px solid var(--red); background: rgba(232, 65, 62, 0.1);">
-      <span style="background: var(--red); color: white; font-size: 10px; padding: 2px; position: absolute; top: -16px; left: -2px; font-weight: bold;">WEAPON 0.89</span>
-    </div>
-  `;
+  document.getElementById(`row-${data.id}`).classList.add('selected');
+  previousSelectedRow = data.id;
+
+  document.getElementById('ict-title').classList.add('hidden');
+  document.getElementById('step-alpha').classList.add('hidden');
+  document.getElementById('step-beta').classList.add('hidden');
+  document.getElementById('step-omega').classList.add('hidden');
+  document.getElementById('connector-1').classList.add('hidden');
+  document.getElementById('connector-2').classList.add('hidden');
+
+  const currentImage = document.getElementById('image-preview');
+  currentImage.src = data.imgUrl;
+
+  document.getElementById('image-preview-container').style.display = 'flex';
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -733,3 +839,12 @@ async function procesarArchivo(evento) {
     };
     lector.readAsText(archivo);
 }
+
+window.switchTab = switchTab;
+window.showOmegaPreview = showOmegaPreview;
+
+window.exportJSON = exportJSON;
+window.exportCSV = exportCSV;
+
+window.downloadFile = downloadFile;
+window.closeOmegaPreview = closeOmegaPreview;
