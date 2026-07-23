@@ -17,6 +17,7 @@ const omegaRegisters = new Map();
 
 let allData = [];
 let charts = {};
+let targetData = [];
 let currentFileName = 'sin cargar';
 const IGNORED_HASHTAG_BASE = new Set([
   'fyp', 'foryou', 'foryoupage', 'fy', 'viral', 'trending', 'parati', 'para_ti'
@@ -30,6 +31,7 @@ async function fetchDataFromServer() {
     const data = await response.json();
     
     allData = normalizeData(data);
+    targetData = allData.filter(d => d.riesgo === 'PELIGROSO');
     setLoadedFileName('Base de Datos SQL');
     renderAll();
     showToast('Datos cargados desde SQL con éxito');
@@ -351,7 +353,7 @@ function setLoadedFileName(name) {
 }
 
 function renderCards() {
-  const totalFollowers = allData.reduce((a,b) => a + (b.followers||0), 0);
+  const totalFollowers = targetData.reduce((a,b) => a + (b.followers||0), 0);
   const totalPosts     = allData.reduce((a,b) => a + (b.publicaciones||0), 0);
   const totalComments  = allData.reduce((a,b) => a + (b.comentarios||0), 0);
   const safeCount      = allData.filter(d => normalizeRiskLabel(d.riesgo || d.label || d.riskLabel) === 'seguro').length;
